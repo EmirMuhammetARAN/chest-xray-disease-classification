@@ -1,35 +1,22 @@
-"""
-Chest X-Ray Disease Classification - Hugging Face Demo
-=======================================================
-
-Multi-label classification of 15 thoracic diseases from chest X-rays.
-
-Author: Emir Muhammet Aran
-Model: EfficientNetB0 (AUC 0.784)
-Dataset: NIH ChestX-ray14
-"""
-
 import gradio as gr
 import tensorflow as tf
 import numpy as np
-import pickle
 from PIL import Image
-import warnings
-warnings.filterwarnings('ignore')
-from gradcam_utils import generate_gradcam_for_top_predictions, get_last_conv_layer_name
-
+import cv2
+import matplotlib.pyplot as plt
+import matplotlib.cm as cm
+import pandas as pd
+import os
 
 # ============================================================================
-# MODEL LOADING
+# 1. MODEL VE AYARLAR
 # ============================================================================
 
 def build_model(num_classes=15):
-    """Rebuild EfficientNetB0 architecture"""
     from tensorflow.keras import layers
     from tensorflow.keras.applications import EfficientNetB0
     
     IMG_SIZE = 224
-    
     inputs = layers.Input(shape=(IMG_SIZE, IMG_SIZE, 3))
     
     base_model = EfficientNetB0(
@@ -49,299 +36,179 @@ def build_model(num_classes=15):
     model = tf.keras.Model(inputs=inputs, outputs=outputs)
     return model
 
-
-# Load model components
-print("Loading model...")
-model = build_model(num_classes=15)
-model.load_weights('best_model_final.h5')
-
-with open('optimal_thresholds.pkl', 'rb') as f:
-    optimal_thresholds = pickle.load(f)
-
-with open('label_encoder.pkl', 'rb') as f:
-    label_encoder = pickle.load(f)
-
-print("✅ Model loaded successfully!")
-
-
-# ============================================================================
-# PREDICTION FUNCTION
-# ============================================================================
-
-def predict_xray(image, use_tta=False):
-    """
-    Predict diseases from chest X-ray image.
-    
-    Args:
-        image: PIL Image or numpy array
-        use_tta: Use Test-Time Augmentation (slower but more accurate)
-    
-    Returns:
-        HTML formatted results
-    """
-    try:
-        # Preprocess image
-        if isinstance(image, np.ndarray):
-            image = Image.fromarray(image)
-        
-        # Resize and normalize
-        image = image.convert('RGB')
-        image = image.resize((224, 224))
-        img_array = np.array(image) / 255.0
-        img_array = np.expand_dims(img_array, axis=0).astype(np.float32)
-        
-        # Predict
-        if use_tta:
-            # Test-Time Augmentation (5 predictions)
-            predictions = []
-            predictions.append(model.predict(img_array, verbose=0)[0])
-            
-            for _ in range(4):
-                # Random horizontal flip
-                aug_img = tf.image.random_flip_left_right(img_array)
-                aug_img = tf.image.random_brightness(aug_img, max_delta=0.1)
-                aug_img = tf.clip_by_value(aug_img, 0.0, 1.0)
-                predictions.append(model.predict(aug_img.numpy(), verbose=0)[0])
-            
-            probs = np.mean(predictions, axis=0)
-        else:
-            probs = model.predict(img_array, verbose=0)[0]
-        
-        # Apply thresholds and format results
-        results = []
-        for disease, idx in label_encoder.items():
-            prob = float(probs[idx])
-            threshold = optimal_thresholds[disease]
-            
-            if prob >= threshold:
-                confidence_score = min((prob - threshold) / (1 - threshold), 1.0)
-                confidence = 'HIGH' if confidence_score > 0.5 else 'MEDIUM'
-                
-                results.append({
-                    'disease': disease,
-                    'probability': prob,
-                    'confidence': confidence
-                })
-        
-        # Sort by probability
-        results = sorted(results, key=lambda x: x['probability'], reverse=True)
-        
-        # Generate Grad-CAM for top 3 predictions if enabled
-        gradcam_images = None
-        if use_tta and results:  # Use TTA checkbox to toggle Grad-CAM
-            try:
-                last_conv_layer = get_last_conv_layer_name(model)
-                gradcam_images = generate_gradcam_for_top_predictions(
-                    image, model, results, label_encoder, top_k=min(3, len(results)), 
-                    last_conv_layer_name=last_conv_layer
-                )
-            except Exception as e:
-                print(f"Grad-CAM generation failed: {e}")
-                gradcam_images = None
-        
-        # Format output
-        if not results:
-            html_output = """
-            <div style="padding: 20px; background: #d4edda; border: 2px solid #28a745; border-radius: 10px;">
-                <h2 style="color: #155724; margin-top: 0;">✅ NO ABNORMALITIES DETECTED</h2>
-                <p style="color: #155724;">All disease probabilities are below the optimized thresholds.</p>
-                <p style="color: #666; font-size: 0.9em; margin-bottom: 0;">
-                    <strong>Note:</strong> This model prioritizes recall (80%), so low-probability findings are filtered out.
-                </p>
-            </div>
-            """
-        else:
-            html_output = f"""
-            <div style="padding: 20px; background: #fff3cd; border: 2px solid #ffc107; border-radius: 10px;">
-                <h2 style="color: #856404; margin-top: 0;">⚠️ {len(results)} POTENTIAL FINDING(S) DETECTED</h2>
-                <div style="margin: 15px 0;">
-            """
-            
-            for i, r in enumerate(results, 1):
-                prob_pct = f"{r['probability'] * 100:.1f}%"
-                conf_color = '#28a745' if r['confidence'] == 'HIGH' else '#ffc107'
-                
-                html_output += f"""
-                <div style="padding: 12px; margin: 8px 0; background: white; border-left: 4px solid {conf_color}; border-radius: 5px;">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <span style="font-weight: bold; font-size: 1.1em;">{i}. {r['disease']}</span>
-                        <span style="background: {conf_color}; color: white; padding: 4px 12px; border-radius: 12px; font-size: 0.85em;">
-                            {r['confidence']}
-                        </span>
-                    </div>
-                    <div style="margin-top: 8px;">
-                        <span style="color: #666;">Probability: </span>
-                        <span style="font-weight: bold; color: #333;">{prob_pct}</span>
-                    </div>
-                </div>
-                """
-            
-            html_output += """
-                </div>
-            </div>
-            """
-        
-        # Add disclaimer
-        html_output += """
-        <div style="margin-top: 20px; padding: 15px; background: #f8d7da; border: 2px solid #f5c6cb; border-radius: 10px;">
-            <h3 style="color: #721c24; margin-top: 0; font-size: 1em;">⚠️ IMPORTANT DISCLAIMER</h3>
-            <p style="color: #721c24; margin: 8px 0; font-size: 0.9em;">
-                <strong>This is a research prototype. NOT for clinical diagnosis.</strong>
-            </p>
-            <ul style="color: #721c24; margin: 8px 0; font-size: 0.85em; padding-left: 20px;">
-                <li>Model achieves 0.784 AUC (80% recall, 40% precision)</li>
-                <li>High false positive rate by design (prioritizes catching diseases)</li>
-                <li>Dataset has 10-20% label noise (NLP-extracted labels)</li>
-                <li>Always consult a qualified radiologist for medical diagnosis</li>
-            </ul>
-        </div>
-        """
-        
-        # Return both HTML and Grad-CAM images
-        if gradcam_images:
-            return html_output, gradcam_images[0][1], gradcam_images[1][1] if len(gradcam_images) > 1 else None, gradcam_images[2][1] if len(gradcam_images) > 2 else None
-        else:
-            return html_output, None, None, None
-        
-    except Exception as e:
-        error_html = f"""
-        <div style="padding: 20px; background: #f8d7da; border: 2px solid #f5c6cb; border-radius: 10px;">
-            <h2 style="color: #721c24; margin-top: 0;">❌ ERROR</h2>
-            <p style="color: #721c24;">Failed to process image: {str(e)}</p>
-            <p style="color: #666; font-size: 0.9em;">
-                Please ensure the image is a valid chest X-ray (PNG/JPEG format).
-            </p>
-        </div>
-        """
-        return error_html, None, None, None
-
-
-# ============================================================================
-# GRADIO INTERFACE
-# ============================================================================
-
-# Custom CSS
-custom_css = """
-#component-0 {
-    max-width: 900px;
-    margin: auto;
-}
-.output-html {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-}
-"""
-
-# Example images (optional - add if you have sample X-rays)
-examples = [
-    # ["examples/normal.png"],
-    # ["examples/pneumonia.png"],
+CLASS_NAMES = [
+    'Atelectasis',
+    'Cardiomegaly',
+    'Consolidation',
+    'Edema',
+    'Effusion',
+    'Emphysema',
+    'Fibrosis',
+    'Hernia',
+    'Infiltration',
+    'Mass',
+    'No Finding',
+    'Nodule',
+    'Pleural_Thickening',
+    'Pneumonia',
+    'Pneumothorax'
 ]
 
-# Create Gradio interface
-with gr.Blocks(css=custom_css, title="Chest X-Ray Disease Classifier") as demo:
-    gr.Markdown(
-        """
-        # 🏥 Chest X-Ray Disease Classification
-        
-        **Multi-label detection of 15 thoracic diseases using EfficientNetB0**
-        
-        Upload a frontal chest X-ray image to detect potential abnormalities.
-        
-        **Performance:** Mean AUC 0.784 | 80% Recall | Trained on 112K X-rays (NIH ChestX-ray14)
-        
-        ---
-        """
-    )
+print("Model hazırlanıyor...")
+model = build_model(num_classes=len(CLASS_NAMES))
+model_filename = "best_model_final.h5"
+
+try:
+    model.load_weights(model_filename)
+    print("✅ Ağırlıklar yüklendi.")
+except Exception as e:
+    print(f"❌ HATA: {e}")
+
+LAST_CONV_LAYER = "top_activation"
+
+# ============================================================================
+# 2. GRAD-CAM MOTORU
+# ============================================================================
+
+def get_img_array(image_pil, size):
+    img_array = np.array(image_pil.resize(size))
+    img_array = np.expand_dims(img_array, axis=0)
+    return img_array
+
+def make_gradcam_heatmap(img_array, model, last_conv_layer_name, pred_index=None):
+    try:
+        grad_model = tf.keras.models.Model(
+            inputs=[model.inputs],
+            outputs=[model.get_layer(last_conv_layer_name).output, model.output]
+        )
+    except:
+        last_conv_layer_name = "block7a_project_conv" # Alternatif katman
+        grad_model = tf.keras.models.Model(
+            inputs=[model.inputs],
+            outputs=[model.get_layer(last_conv_layer_name).output, model.output]
+        )
+
+    with tf.GradientTape() as tape:
+        last_conv_layer_output, preds = grad_model(img_array)
+        if pred_index is None:
+            pred_index = tf.argmax(preds[0])
+        class_channel = preds[:, pred_index]
+
+    grads = tape.gradient(class_channel, last_conv_layer_output)
+    pooled_grads = tf.reduce_mean(grads, axis=(0, 1, 2))
+    last_conv_layer_output = last_conv_layer_output[0]
+    heatmap = last_conv_layer_output @ pooled_grads[..., tf.newaxis]
+    heatmap = tf.squeeze(heatmap)
+    heatmap = tf.maximum(heatmap, 0) / tf.math.reduce_max(heatmap)
+    return heatmap.numpy()
+
+def generate_gradcam_plot(image_pil, heatmap, title):
+    img = np.array(image_pil.resize((224, 224)))
+    heatmap = np.uint8(255 * heatmap)
+    jet = cm.get_cmap("jet")
+    jet_colors = jet(np.arange(256))[:, :3]
+    jet_heatmap = jet_colors[heatmap]
+    
+    jet_heatmap = tf.keras.preprocessing.image.array_to_img(jet_heatmap)
+    jet_heatmap = jet_heatmap.resize((img.shape[1], img.shape[0]))
+    jet_heatmap = tf.keras.preprocessing.image.img_to_array(jet_heatmap)
+    
+    superimposed_img = jet_heatmap * 0.4 + img
+    superimposed_img = tf.keras.preprocessing.image.array_to_img(superimposed_img)
+    
+    fig, ax = plt.subplots(figsize=(5, 5))
+    ax.imshow(superimposed_img)
+    ax.set_title(title, fontsize=11, fontweight='bold', color='white', backgroundcolor='darkred')
+    ax.axis('off')
+    return fig
+
+# ============================================================================
+# 3. TAHMİN (SANSÜRSÜZ MOD)
+# ============================================================================
+
+def predict_xray(image):
+    if image is None:
+        return None, None, None, None, None
+
+    # Görüntü İşleme
+    image_pil = Image.fromarray(image).convert("RGB")
+    img_array = get_img_array(image_pil, size=(224, 224))
+    
+    # Tahmin
+    predictions = model.predict(img_array)[0]
+    
+    # 1. Bar Grafiği İçin Sözlük
+    confidences = {CLASS_NAMES[i]: float(predictions[i]) for i in range(len(CLASS_NAMES))}
+    
+    # 2. Detaylı Tablo İçin Dataframe (Tüm 0.0001'leri gösterir)
+    df = pd.DataFrame(list(confidences.items()), columns=["Hastalık", "Olasılık"])
+    df["Olasılık"] = df["Olasılık"].apply(lambda x: f"%{x*100:.4f}") # 4 hane detay
+    df = df.sort_values(by="Olasılık", ascending=False, key=lambda x: x.str.strip('%').astype(float))
+    
+    # 3. Grad-CAM İçin Seçim (Filtresiz)
+    # "No Finding" hariç en yüksek 3 skoru al, oranına bakmaksızın!
+    active_diseases = []
+    for i, score in enumerate(predictions):
+        disease_name = CLASS_NAMES[i]
+        if disease_name != "No Finding": # Sadece temiz'i çıkar
+            active_diseases.append((disease_name, score, i))
+            
+    # Sırala ve ilk 3'ü al
+    active_diseases.sort(key=lambda x: x[1], reverse=True)
+    top_3 = active_diseases[:3]
+    
+    plots = [None, None, None]
+    
+    try:
+        for idx, (name, score, class_idx) in enumerate(top_3):
+            # Heatmap oluştur
+            heatmap = make_gradcam_heatmap(img_array, model, LAST_CONV_LAYER, pred_index=class_idx)
+            # Başlık (Çok düşükse bile göster)
+            plot_title = f"{name}: %{score*100:.2f}"
+            plots[idx] = generate_gradcam_plot(image_pil, heatmap, plot_title)
+    except Exception as e:
+        print(f"Grad-CAM hatası: {e}")
+
+    return confidences, df, plots[0], plots[1], plots[2]
+
+# ============================================================================
+# 4. ARAYÜZ (TABLOLU)
+# ============================================================================
+
+examples_list = []
+if os.path.exists("example_1.jpg"): examples_list.append(["example_1.jpg"])
+
+with gr.Blocks(theme=gr.themes.Soft(), title="Medical AI Analysis") as demo:
+    
+    gr.Markdown("# 🩻 Detaylı Göğüs Röntgeni Analizi")
     
     with gr.Row():
         with gr.Column(scale=1):
-            image_input = gr.Image(
-                label="Upload Chest X-Ray",
-                type="pil",
-                height=400
-            )
+            input_image = gr.Image(label="Röntgen Yükle", type="numpy")
+            predict_btn = gr.Button("🔍 DETAYLI ANALİZ", variant="primary")
             
-            tta_checkbox = gr.Checkbox(
-                label="Enable Grad-CAM Visualization",
-                value=False,
-                info="Show where the model looks (enables TTA for better accuracy)"
-            )
-            
-            predict_btn = gr.Button(
-                "🔍 Analyze X-Ray",
-                variant="primary",
-                size="lg"
-            )
-        
+            # Hepsini gösteren tablo
+            output_table = gr.Dataframe(label="Tüm Sonuçlar (En Düşükler Dahil)", headers=["Hastalık", "Olasılık"], interactive=False)
+
         with gr.Column(scale=1):
-            output_html = gr.HTML(
-                label="Results",
-                elem_classes="output-html"
-            )
-    
-    # Grad-CAM visualizations
-    with gr.Row(visible=True):
-        gradcam_1 = gr.Image(label="🔥 Grad-CAM #1 (Top Prediction)", type="pil")
-        gradcam_2 = gr.Image(label="🔥 Grad-CAM #2", type="pil")
-        gradcam_3 = gr.Image(label="🔥 Grad-CAM #3", type="pil")
-    
-    # Examples section (if you have sample images)
-    if examples:
-        gr.Examples(
-            examples=examples,
-            inputs=image_input,
-            outputs=output_html,
-            fn=predict_xray,
-            cache_examples=False
-        )
-    
-    gr.Markdown(
-        """
-        ---
-        
-        ## 📊 About This Model
-        
-        **Architecture:** EfficientNetB0 with full fine-tuning (237 layers)  
-        **Training:** Focal Loss + Balanced Sampling + Mixed Precision (FP16)  
-        **Dataset:** NIH ChestX-ray14 (112,120 images from 30,805 patients)  
-        
-        **Detected Diseases (15 classes):**
-        - Atelectasis, Cardiomegaly, Consolidation, Edema, Effusion
-        - Emphysema, Fibrosis, Hernia, Infiltration, Mass
-        - Nodule, Pleural Thickening, Pneumonia, Pneumothorax, No Finding
-        
-        **Performance by Disease:**
-        - Best: Edema (0.884 AUC), Cardiomegaly (0.865 AUC), Effusion (0.852 AUC)
-        - Worst: Hernia (0.612 AUC - only 110 training samples)
-        
-        **Limitations:**
-        - High false positive rate (60%) by design to maximize recall
-        - Dataset has label noise (NLP-extracted from reports)
-        - Single-site training (NIH) - may not generalize to other hospitals
-        - NOT FDA-approved or clinically validated
-        
-        ---
-        
-        ## 🔗 Links
-        
-        - **Dataset:** [NIH ChestX-ray14 on Kaggle](https://www.kaggle.com/datasets/nih-chest-xrays/data)
-        - **Code:** [GitHub Repository](https://github.com/emirmuhammmetaran/chest-xray-classification)
-        - **Paper:** [Wang et al. 2017](https://arxiv.org/abs/1705.02315)
-        
-        ---
-        
-        **Built by:** Emir Muhammet Aran | **Institution:** Computer Engineering Student  
-        **Last Updated:** December 2025
-        """
-    )
-    
-    # Connect button to prediction function
+            # Görsel Bar Grafik
+            output_labels = gr.Label(num_top_classes=15, label="Özet Durum")
+            
+            gr.Markdown("### 🧠 Şüphelenilen Bölgeler (Grad-CAM)")
+            gr.Markdown("_Model 'Temiz' dese bile, en ufak şüphe duyduğu bölgeler:_")
+            with gr.Row():
+                plot1 = gr.Plot(label="Şüphe 1")
+                plot2 = gr.Plot(label="Şüphe 2")
+                plot3 = gr.Plot(label="Şüphe 3")
+
+    if examples_list:
+        gr.Examples(examples=examples_list, inputs=input_image)
+
     predict_btn.click(
-        fn=predict_xray,
-        inputs=[image_input, tta_checkbox],
-        outputs=[output_html, gradcam_1, gradcam_2, gradcam_3]
+        fn=predict_xray, 
+        inputs=input_image, 
+        outputs=[output_labels, output_table, plot1, plot2, plot3]
     )
 
-# Launch app
 if __name__ == "__main__":
     demo.launch()
