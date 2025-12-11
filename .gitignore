@@ -13,6 +13,9 @@ images/
 *.png
 *.jpg
 *.jpeg
+!githubImages/*.png
+!githubImages/*.jpg
+!githubImages/*.jpeg
 Data_Entry_2017.csv
 
 # Jupyter
