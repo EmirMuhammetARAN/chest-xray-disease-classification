@@ -1,0 +1,10 @@
+.git
+__pycache__
+*.pyc
+*.pkl
+*.h5
+images/
+.env
+.venv
+.vscode
+.DS_Store

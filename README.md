@@ -220,21 +220,22 @@ for p in predictions:
 ```
 chest-xray-classification/
 ├── chest_xray_analysis.ipynb      # Main notebook (training + evaluation)
-├── README.md                       # This file
-├── ARCHITECTURE.md                 # Detailed architecture diagrams & pipeline
-├── .gitignore                      # Ignore large files
-├── requirements.txt                # Python dependencies
-├── demo.py                         # Local inference script
+├── README.md                      # This file
+├── ARCHITECTURE.md                # Detailed architecture diagrams & pipeline
+├── .gitignore                     # Ignore large files
+├── requirements.txt               # Python dependencies
+├── demo.py                        # Local inference script
 ├── demo_with_gradcam.py           # Local demo with Grad-CAM visualization
 ├── gradcam_utils.py               # Grad-CAM implementation
-├── app.py                          # Gradio web interface for HF Spaces
-├── best_model_final.h5            # Model weights (NOT in repo - download separately)
-├── optimal_thresholds.pkl         # Disease-specific thresholds (NOT in repo)
-├── label_encoder.pkl              # Disease name mapping (NOT in repo)
-└── images/                        # Dataset (NOT in repo - download from NIH)
+├── app.py                         # Gradio web interface for HF Spaces
+├── best_model_final.h5            # Model weights (included)
+├── best_model.h5                  # Alternative/training checkpoint (included)
+├── optimal_thresholds.pkl         # Disease-specific thresholds (included)
+├── label_encoder.pkl              # Disease name mapping (included)
+└── images/                        # Example images / input samples (small subset)
 ```
 
-**Note:** Model files excluded due to size. Train the model using the notebook to generate weights.
+**Note:** This repository includes pre-trained model artifacts for convenience. If you prefer to retrain from scratch, use the notebook to generate your own weights.
 
 ---
 
@@ -365,29 +366,89 @@ MIT License - See [LICENSE](LICENSE) file for details.
 
 **Author:** Emir Muhammet Aran  
 **Institution:** Computer Engineering Student  
-**GitHub:** [github.com/emirmuhammmetaran](https://github.com/emirmuhammmetaran)
+**GitHub:** [github.com/EmirMuhammetARAN](https://github.com/EmirMuhammetARAN)
 
 ---
 
 ## ⚡ Quick Start
 
-```bash
-# 1. Clone repo
-git clone https://github.com/emirmuhammmetaran/chest-xray-classification.git
-cd chest-xray-classification
+Windows PowerShell (recommended):
 
-# 2. Install dependencies
+```powershell
+# 1. Clone repo
+git clone https://github.com/EmirMuhammetARAN/chest-xray-disease-classification.git
+cd chest-xray-disease-classification
+
+# 2. Create and activate virtual environment (PowerShell)
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+
+# 3. Install dependencies
+pip install --upgrade pip
 pip install -r requirements.txt
 
-# 3. Download dataset from NIH
-# https://nihcc.app.box.com/v/ChestXray-NIHCC
+# 4. Run the Gradio app (local demo)
+python app.py
 
-# 4. Run notebook
-jupyter notebook chest_xray_analysis.ipynb
-
-# 5. Train model (or use pre-trained weights)
-# Training takes ~3 hours on GPU
+# 5. Quick inference examples
+python demo.py                # runs the included demo flow
+python demo_with_gradcam.py images/00000001_000.png  # generate Grad-CAM images
 ```
+
+Unix / WSL / macOS:
+
+```bash
+# 1. Clone repo
+git clone https://github.com/EmirMuhammetARAN/chest-xray-disease-classification.git
+cd chest-xray-disease-classification
+
+# 2. Create and activate venv
+python3 -m venv .venv
+source .venv/bin/activate
+
+# 3. Install dependencies
+pip install --upgrade pip
+pip install -r requirements.txt
+
+# 4. Run notebook or demos
+jupyter notebook chest_xray_analysis.ipynb
+python demo.py
+python demo_with_gradcam.py images/00000001_000.png
+```
+
+Notes:
+- Model artifact files present in repo: `best_model_final.h5`, `best_model.h5`, `optimal_thresholds.pkl`, `label_encoder.pkl`.
+- If you prefer to retrain the model yourself, open `chest_xray_analysis.ipynb` and follow the training cells (GPU recommended).
+
+## ✅ Reproducibility & Tests
+
+- The primary training pipeline is in `chest_xray_analysis.ipynb`. Run the notebook in order to reproduce preprocessing, training, and threshold selection.
+- For deterministic runs: fix random seeds (`numpy`, `tensorflow`, `python`), run on the same TF/CUDA versions, and use the same data split (patient-level split is required).
+- Add tests under `test/` for small utility functions and model I/O. Keep CI fast by mocking heavy model calls.
+
+## 🛠 Troubleshooting
+
+- Missing model files: ensure `best_model_final.h5`, `optimal_thresholds.pkl`, and `label_encoder.pkl` are in the project root. `demo.py` will print missing files if any are absent.
+- GPU errors: verify your CUDA/cuDNN versions match the installed TensorFlow version. Use `pip show tensorflow` and consult TensorFlow release notes.
+- Slow inference: enable mixed precision or run with reduced TTA (`use_tta=False`). For batch inference, use larger batch sizes where memory permits.
+- Grad-CAM fails: some model builds use different last-conv layer names. `gradcam_utils.get_last_conv_layer_name()` attempts to find a compatible layer; update `LAST_CONV_LAYER` in `app.py` if necessary.
+
+## 📚 How to Cite
+
+If you use this work in academic research, please cite the original ChestX-ray14 dataset paper (Wang et al., 2017) and this repository in the methods section.
+
+Example citation:
+
+```
+Wang X, Peng Y, Lu L, Lu Z, Bagheri M, Summers RM. ChestX-ray8: Hospital-scale Chest X-ray Database and Benchmarks. 2017.
+Repository: EmirMuhammetARAN/chest-xray-disease-classification (GitHub).
+```
+
+## 🔒 Privacy & Data
+
+- The ChestX-ray14 dataset is public-domain (U.S. government data). Do not commit patient-identifiable data to this repository.
+- When sharing results, follow the original dataset license and acknowledge the NIH dataset.
+
 
 ---
 
