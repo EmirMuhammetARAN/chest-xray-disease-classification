@@ -21,6 +21,43 @@
 
 ---
 
+<p align="center">
+    <img src="githubImages/per_class_auc.png" alt="Per-Class AUC Bar Chart" width="600"/>
+    <br>
+    <b>Figure 1. Per-Class AUC Breakdown (Edema at top, Nodule at bottom)</b>
+</p>
+
+<p align="center">
+    <img src="githubImages/recall_precision_tradeoff.png" alt="Recall vs Precision Trade-off" width="600"/>
+    <br>
+    <b>Figure 2. Recall vs Precision Trade-off for All Diseases</b>
+</p>
+
+
+<p align="center">
+    <img src="githubImages/train_test_distribution.png" alt="Train/Test Disease Distribution" width="800"/>
+    <br>
+    <b>Figure 3. Train vs Test Set Disease Distribution</b>
+</p>
+
+<p align="center">
+    <img src="githubImages/gradcam_examples.png" alt="Grad-CAM Heatmaps" width="400"/>
+    <br>
+    <b>Figure 4. Grad-CAM Heatmaps for Model Explainability</b>
+</p>
+
+<p align="center">
+    <img src="githubImages/roc_top6.png" alt="ROC Curves Top 6 Diseases" width="700"/>
+    <br>
+    <b>Figure 5. ROC Curves for Top 6 Diseases by AUC</b>
+</p>
+
+<p align="center">
+    <img src="githubImages/prc_top6.png" alt="Precision-Recall Curves Top 6 Diseases" width="700"/>
+    <br>
+    <b>Figure 6. Precision-Recall Curves for Top 6 Diseases</b>
+</p>
+
 ## 🎯 Dataset
 
 **ChestX-ray14 (NIH Clinical Center)**
