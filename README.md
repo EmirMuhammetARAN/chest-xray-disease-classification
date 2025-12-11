@@ -22,40 +22,33 @@
 ---
 
 <p align="center">
-    <img src="githubImages/per_class_auc.png" alt="Per-Class AUC Bar Chart" width="600"/>
+    <img src="githubImages/dataset.png" alt="Train/Test Disease Distribution" width="800"/>
     <br>
-    <b>Figure 1. Per-Class AUC Breakdown (Edema at top, Nodule at bottom)</b>
+    <b>Figure 1. Train vs Test Set Disease Distribution</b>
 </p>
 
 <p align="center">
-    <img src="githubImages/recall_precision_tradeoff.png" alt="Recall vs Precision Trade-off" width="600"/>
+    <img src="githubImages/gradcam.png" alt="Grad-CAM Heatmaps" width="400"/>
     <br>
-    <b>Figure 2. Recall vs Precision Trade-off for All Diseases</b>
-</p>
-
-
-<p align="center">
-    <img src="githubImages/train_test_distribution.png" alt="Train/Test Disease Distribution" width="800"/>
-    <br>
-    <b>Figure 3. Train vs Test Set Disease Distribution</b>
+    <b>Figure 2. Grad-CAM Heatmaps for Model Explainability</b>
 </p>
 
 <p align="center">
-    <img src="githubImages/gradcam_examples.png" alt="Grad-CAM Heatmaps" width="400"/>
+    <img src="githubImages/top6 auc.png" alt="ROC Curves Top 6 Diseases" width="700"/>
     <br>
-    <b>Figure 4. Grad-CAM Heatmaps for Model Explainability</b>
+    <b>Figure 3. ROC Curves for Top 6 Diseases by AUC</b>
 </p>
 
 <p align="center">
-    <img src="githubImages/roc_top6.png" alt="ROC Curves Top 6 Diseases" width="700"/>
+    <img src="githubImages/top6 precision-recall.png" alt="Precision-Recall Curves Top 6 Diseases" width="700"/>
     <br>
-    <b>Figure 5. ROC Curves for Top 6 Diseases by AUC</b>
+    <b>Figure 4. Precision-Recall Curves for Top 6 Diseases</b>
 </p>
 
 <p align="center">
-    <img src="githubImages/prc_top6.png" alt="Precision-Recall Curves Top 6 Diseases" width="700"/>
+    <img src="githubImages/try it.png" alt="Try It UI Screenshot" width="500"/>
     <br>
-    <b>Figure 6. Precision-Recall Curves for Top 6 Diseases</b>
+    <b>Figure 5. Try It! - Gradio Demo UI Screenshot</b>
 </p>
 
 ## 🎯 Dataset
